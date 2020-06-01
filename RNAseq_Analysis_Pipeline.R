@@ -27,7 +27,6 @@ PDXINFOTABLE <- read.csv(PDXINFOFILE)
 PDXCOUNTS <- PDXCOUNTS[, as.character(PDXINFOTABLE$Description)]
 all(colnames(PDXCOUNTS) == PDXINFOTABLE$Description) ##Sanity check
 
-
 ##Its easier to do contrasts in the PDX line and tissue type is combined, so add that to the info table
 PDXINFOTABLE$Line_Type <- paste(PDXINFOTABLE$PDX_Line, PDXINFOTABLE$Tumor_type, sep = "_")
 ##Make sure that column is a factor since its going into DESeq
@@ -83,7 +82,6 @@ write.csv(geneRes1003, "File_Name.csv")
 vsd <- vst(dds, blind = F)
 
 plotPCA(vsd, intgroup = "Line_Type")
-
 
 
 #########################################################################
