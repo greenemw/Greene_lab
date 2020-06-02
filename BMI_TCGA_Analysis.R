@@ -35,12 +35,12 @@ tcgaCmsLabs <- subset(cmsLabs,
 ##Merge Guinney labels with BMI from TCGA
 BMI_CMS <- merge(tcgaBmi,tcgaCmsLabs, by = "sample")
 tcga_bmi_cms <- BMI_CMS[!duplicated(BMI_CMS$sample),]
-colnames(tcga_bmi_cms)[4] <- "cms"
+colnames(tcga_bmi_cms)[c(1,4)] <- c("ID","cms")
 tcga_bmi_cms$obese <- ifelse(tcga_bmi_cms$bmi >= 30, "Obese", "Not Obese")
 
 write.csv(tcga_bmi_cms, "TCGA_BMI_with_Guinney_CMS_labels.csv")
 
-##Remove NA's in 
+##Remove NA's in bmi data
 dat <- tcga_bmi_cms[!is.na(tcga_bmi_cms$bmi),-2]
 ##Explore BMI and CMS associations
 attach(dat)
@@ -49,24 +49,59 @@ table(obese)/length(obese)
 summary(bmi)
 
 ##Graphical Analysis
+png("CMS and BMI Boxplots.png")
 ggplot(data = dat, aes(cms,bmi)) + 
   geom_boxplot() + 
   labs(title = "BMI and CMS", x = "CMS", y = "BMI")
+dev.off()
+
+png("CMS and BMI Histograms.png")
 ggplot(dat, aes(bmi)) + 
   geom_histogram(binwidth = 3,col = "black", fill = "white") +
   facet_wrap(~cms, ncol = 2) + 
   labs(title = "BMI and CMS Histograms", x = "BMI", y = "Frequency")
+dev.off()
+
+png("CMS and BMI eCDF.png")
 ggplot(data = dat, aes(bmi, color = cms)) + 
   stat_ecdf(size = 1) + 
   labs(title = "Empirical Distribution of BMI", x = "BMI", y = "P(X)")
+dev.off()
 
 ##Statistical Analysis
 library(coin)
+##Analyze with BMI as dichotomous
 tblBmiCms <- table(obese, cms)
 chisq.test(tblBmiCms)
+independence_test(obese ~ cms)
 
-independence_test(bmi~cms)
+##Analyze BMI as continuous
+independence_test(bmi~cms, distribution = "approximate")
 
+##Permutation test by hand
+bmiFit <- lm(bmi ~ cms)
+trueStat <- anova(bmiFit)[[4]][1]
 
+R <- 5000
+i <- 0
+Fstat <- c()
+while (i < R){
+  permBmi <- base::sample(x = bmi,replace = F)
+  permFit <- lm(permBmi ~ cms)
+  Fstat[i] <- anova(permFit)[[4]][1]
+  i <- i+1
+}
+
+Fn <- ecdf(Fstat)
+png(filename = "ANOVA Permutation Test.png")
+ggplot(data.frame(Fstat), aes(Fstat)) +
+  geom_histogram(binwidth = 0.3, col="black", fill = "white") +
+  geom_vline(xintercept = trueStat, linetype = "dashed", col = "black", size = 1) +
+  labs(title = "Permutation ANOVA",
+       subtitle = "Null Distribution of F",
+        x = "Permuted F-statistic",
+        y = "Count",
+       caption = paste0("P-value for true F = ", round(1-Fn(trueStat),4)))
+dev.off()
 
 
