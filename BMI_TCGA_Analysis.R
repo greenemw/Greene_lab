@@ -36,17 +36,29 @@ tcgaCmsLabs <- subset(cmsLabs,
 BMI_CMS <- merge(tcgaBmi,tcgaCmsLabs, by = "sample")
 tcga_bmi_cms <- BMI_CMS[!duplicated(BMI_CMS$sample),]
 colnames(tcga_bmi_cms)[c(1,4)] <- c("ID","cms")
-tcga_bmi_cms$obese <- ifelse(tcga_bmi_cms$bmi >= 30, "Obese", "Not Obese")
+tcga_bmi_cms$obese <- ifelse(tcga_bmi_cms$bmi >= 30, "Obese", "Not_Obese")
 
-write.csv(tcga_bmi_cms, "TCGA_BMI_with_Guinney_CMS_labels.csv")
+##Remove NA's in bmi data and add BMI category
+dat <- tcga_bmi_cms[!is.na(dat$bmi),]
+for (i in 1:length(dat$bmi)){
+  if (dat$bmi[i] >=30){
+    dat$bmiCat[i] <- "Obese"
+  } else if(dat$bmi[i] < 30 & dat$bmi[i] >=25){
+    dat$bmiCat[i] <- "Overweight"
+  } else if(dat$bmi[i] < 25 & dat$bmi[i] >=18.5){
+    dat$bmiCat[i] <- "Normal"
+  } else (dat$bmiCat[i] <- NA)
+}
 
-##Remove NA's in bmi data
-dat <- tcga_bmi_cms[!is.na(tcga_bmi_cms$bmi),-2]
+
+write.csv(dat, "TCGA_BMI_with_Guinney_CMS_labels.csv")
 ##Explore BMI and CMS associations
 attach(dat)
 table(cms)/length(cms)
 table(obese)/length(obese)
 summary(bmi)
+
+table(cms, bmiCat)
 
 ##Graphical Analysis
 png("CMS and BMI Boxplots.png")
@@ -70,14 +82,25 @@ dev.off()
 
 ##Statistical Analysis
 library(coin)
+
 ##Analyze with BMI as dichotomous
 tblBmiCms <- table(obese, cms)
 chisq.test(tblBmiCms)
-independence_test(obese ~ cms)
+independence_test(tblBmiCms, "quadratic")
+
+##Analyze with BMI in 3 groups
+tblBmiCatCms <- table(bmiCat,cms)
+chisq.test(tblBmiCatCms)
+independence_test(tblBmiCatCms, "quadratic")
 
 ##Analyze BMI as continuous
-independence_test(bmi~cms, distribution = "approximate")
+##Print summaries of each subtype
+for (i in unique(cms)){
+  print(paste("Summary for", i))
+  print(summary(bmi[cms == i]))
+}
 
+independence_test(bmi~cms, alternative = "greater")
 ##Permutation test by hand
 bmiFit <- lm(bmi ~ cms)
 trueStat <- anova(bmiFit)[[4]][1]
@@ -93,6 +116,7 @@ while (i < R){
 }
 
 Fn <- ecdf(Fstat)
+1-Fn(trueStat)
 png(filename = "ANOVA Permutation Test.png")
 ggplot(data.frame(Fstat), aes(Fstat)) +
   geom_histogram(binwidth = 0.3, col="black", fill = "white") +
@@ -103,5 +127,20 @@ ggplot(data.frame(Fstat), aes(Fstat)) +
         y = "Count",
        caption = paste0("P-value for true F = ", round(1-Fn(trueStat),4)))
 dev.off()
+
+##Chi-sq permutation by hand
+R <- 5000
+i <- 0
+Xstat <- c()
+while(i < R) {
+  permCms <- base::sample(cms, replace = F)
+  permTbl <- table(obese,permCms)
+  Xstat[i] <- chisq.test(permTbl)[[1]][[1]]
+  i <- i+1
+}
+
+FnX <- ecdf(Xstat)
+1-FnX(chisq$statistic)
+hist(Xstat)
 
 
